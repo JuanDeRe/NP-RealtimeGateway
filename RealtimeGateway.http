@@ -1,0 +1,6 @@
+@RealtimeGateway_HostAddress = http://localhost:5296
+
+GET {{RealtimeGateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

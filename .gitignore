@@ -1,0 +1,47 @@
+﻿# .NET build output
+bin/
+obj/
+out/
+publish/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables / secrets
+.env
+.env.*
+appsettings.Development.json
+appsettings.Production.json
+secrets.json
+
+# NuGet
+*.nupkg
+packages/
+project.lock.json
+project.assets.json
+
+# Test results
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Docker / local overrides
+docker-compose.override.yml
