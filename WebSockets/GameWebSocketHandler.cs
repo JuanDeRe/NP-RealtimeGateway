@@ -78,16 +78,29 @@ public class GameWebSocketHandler
             await SendErrorAsync(webSocket, "Invalid MoveCommand payload");
             return;
         }
-
-        var movementEvent = await _gameServiceClient.MoveAsync(command);
-
-        if (movementEvent is null)
+        
+        
+        try
+        
         {
-            await SendErrorAsync(webSocket, "GameService rejected movement");
-            return;
-        }
+            var movementEvent = await _gameServiceClient.MoveAsync(command);
 
-        await SendJsonAsync(webSocket, movementEvent);
+            if (movementEvent is null)
+            {
+                await SendErrorAsync(webSocket, "GameService rejected movement");
+                return;
+            }
+
+            await SendJsonAsync(webSocket, movementEvent);
+        }
+        catch (HttpRequestException)
+        {
+            await SendErrorAsync(webSocket, "GameService is not available");
+        }
+        catch (Exception exception)
+        {
+            await SendErrorAsync(webSocket, $"Unexpected error: {exception.Message}");
+        }
     }
 
     private static async Task SendErrorAsync(WebSocket webSocket, string message)
