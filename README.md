@@ -1,9 +1,6 @@
-# README para `RealtimeGateway`
-
-Pon esto en `RealtimeGateway/README.md`:
-
-```markdown
 # Nightwatch Protocol - RealtimeGateway
+
+https://github.com/JuanDeRe/NP-RealtimeGateway/actions/workflows/ci.yml/badge.svg](https://github.com/JuanDeRe/NP-RealtimeGateway/actions/workflows/ci.yml)
 
 `RealtimeGateway` es el servicio encargado de manejar conexiones WebSocket entre los clientes y el backend de gameplay.
 
