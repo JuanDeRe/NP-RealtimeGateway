@@ -4,5 +4,8 @@ namespace RealtimeGateway.Services;
 
 public interface IGameServiceClient
 {
-    Task<PlayerMovedEvent?> MoveAsync(MoveCommandMessage message);
+    Task<PlayerMovedEvent?> MoveAsync(
+        MoveCommandMessage message,
+        string playerId
+    );
 }

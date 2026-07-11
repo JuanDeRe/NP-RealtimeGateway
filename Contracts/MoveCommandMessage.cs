@@ -6,8 +6,6 @@ public class MoveCommandMessage
 
     public string MatchId { get; set; } = string.Empty;
 
-    public string PlayerId { get; set; } = string.Empty;
-
     public float DirectionX { get; set; }
 
     public float DirectionY { get; set; }

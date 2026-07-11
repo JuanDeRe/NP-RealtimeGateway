@@ -18,11 +18,13 @@ public class GameServiceClient : IGameServiceClient
         _options = options.Value;
     }
 
-    public async Task<PlayerMovedEvent?> MoveAsync(MoveCommandMessage message)
+    public async Task<PlayerMovedEvent?> MoveAsync(
+        MoveCommandMessage message,
+        string playerId)
     {
         var request = new GameServiceMoveCommand
         {
-            PlayerId = message.PlayerId,
+            PlayerId = playerId,
             DirectionX = message.DirectionX,
             DirectionY = message.DirectionY,
             DeltaTime = message.DeltaTime
@@ -34,7 +36,11 @@ public class GameServiceClient : IGameServiceClient
 
         if (!response.IsSuccessStatusCode)
         {
-            return null;
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+
+            throw new InvalidOperationException(
+                error?.Message ?? "GameService rejected movement"
+            );
         }
 
         return await response.Content.ReadFromJsonAsync<PlayerMovedEvent>();

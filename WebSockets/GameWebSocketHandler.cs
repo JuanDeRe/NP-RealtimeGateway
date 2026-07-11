@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using RealtimeGateway.Contracts;
 using RealtimeGateway.Services;
+using RealtimeGateway.Security;
 
 namespace RealtimeGateway.WebSockets;
 
@@ -15,7 +16,7 @@ public class GameWebSocketHandler
         _gameServiceClient = gameServiceClient;
     }
 
-    public async Task HandleAsync(WebSocket webSocket)
+    public async Task HandleAsync(WebSocket webSocket, AuthenticatedConnection connection)
     {
         var buffer = new byte[4096];
 
@@ -55,15 +56,17 @@ public class GameWebSocketHandler
 
             if (baseMessage.Type == "MoveCommand")
             {
-                await HandleMoveCommandAsync(webSocket, json);
-                continue;
+                await HandleMoveCommandAsync(webSocket, json, connection);                continue;
             }
 
             await SendErrorAsync(webSocket, $"Unsupported message type: {baseMessage.Type}");
         }
     }
 
-    private async Task HandleMoveCommandAsync(WebSocket webSocket, string json)
+    private async Task HandleMoveCommandAsync(
+        WebSocket webSocket,
+        string json,
+        AuthenticatedConnection connection)
     {
         var command = JsonSerializer.Deserialize<MoveCommandMessage>(
             json,
@@ -78,12 +81,13 @@ public class GameWebSocketHandler
             await SendErrorAsync(webSocket, "Invalid MoveCommand payload");
             return;
         }
-        
-        
+
         try
-        
         {
-            var movementEvent = await _gameServiceClient.MoveAsync(command);
+            var movementEvent = await _gameServiceClient.MoveAsync(
+                command,
+                connection.PlayerId
+            );
 
             if (movementEvent is null)
             {
@@ -92,6 +96,10 @@ public class GameWebSocketHandler
             }
 
             await SendJsonAsync(webSocket, movementEvent);
+        }
+        catch (InvalidOperationException exception)
+        {
+            await SendErrorAsync(webSocket, exception.Message);
         }
         catch (HttpRequestException)
         {
