@@ -21,7 +21,20 @@ builder.Services.AddHttpClient<IGameServiceClient, GameServiceClient>();
 
 builder.Services.AddScoped<GameWebSocketHandler>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("UnityWebClient", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
+
+app.UseCors("UnityWebClient");
 
 app.UseWebSockets();
 
