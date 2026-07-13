@@ -45,4 +45,41 @@ public class GameServiceClient : IGameServiceClient
 
         return await response.Content.ReadFromJsonAsync<PlayerMovedEvent>();
     }
+    public async Task<bool> IsPlayerInMatchAsync(
+        string matchId,
+        string playerId)
+    {
+        try
+        {
+            var url =
+                $"{_options.BaseUrl}/game/matches/{matchId}";
+
+            var response = await _httpClient.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            var match = await response.Content
+                .ReadFromJsonAsync<GameSessionResponse>();
+
+            if (match is null)
+            {
+                return false;
+            }
+
+            return match.Players.Any(
+                player => player.PlayerId == playerId
+            );
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return false;
+        }
+    }
 }

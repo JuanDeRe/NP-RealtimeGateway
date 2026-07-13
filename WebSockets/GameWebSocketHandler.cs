@@ -1,6 +1,7 @@
 ﻿using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using RealtimeGateway.Connections;
 using RealtimeGateway.Contracts;
 using RealtimeGateway.Services;
 using RealtimeGateway.Security;
@@ -10,13 +11,20 @@ namespace RealtimeGateway.WebSockets;
 public class GameWebSocketHandler
 {
     private readonly IGameServiceClient _gameServiceClient;
+    private readonly IConnectionManager _connectionManager;
 
-    public GameWebSocketHandler(IGameServiceClient gameServiceClient)
+    public GameWebSocketHandler(
+        IGameServiceClient gameServiceClient,
+        IConnectionManager connectionManager)
     {
         _gameServiceClient = gameServiceClient;
+        _connectionManager = connectionManager;
     }
 
-    public async Task HandleAsync(WebSocket webSocket, AuthenticatedConnection connection)
+    public async Task HandleAsync(
+        WebSocket webSocket,
+        AuthenticatedConnection connection,
+        string matchId)
     {
         var buffer = new byte[4096];
 
@@ -56,7 +64,13 @@ public class GameWebSocketHandler
 
             if (baseMessage.Type == "MoveCommand")
             {
-                await HandleMoveCommandAsync(webSocket, json, connection);                continue;
+                await HandleMoveCommandAsync(
+                    webSocket,
+                    json,
+                    connection,
+                    matchId
+                );                
+                continue;
             }
 
             await SendErrorAsync(webSocket, $"Unsupported message type: {baseMessage.Type}");
@@ -66,7 +80,8 @@ public class GameWebSocketHandler
     private async Task HandleMoveCommandAsync(
         WebSocket webSocket,
         string json,
-        AuthenticatedConnection connection)
+        AuthenticatedConnection connection,
+        string connectionMatchId)
     {
         var command = JsonSerializer.Deserialize<MoveCommandMessage>(
             json,
@@ -78,7 +93,21 @@ public class GameWebSocketHandler
 
         if (command is null)
         {
-            await SendErrorAsync(webSocket, "Invalid MoveCommand payload");
+            await SendErrorAsync(
+                webSocket,
+                "Invalid MoveCommand payload"
+            );
+
+            return;
+        }
+
+        if (command.MatchId != connectionMatchId)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "Command match does not match the active connection"
+            );
+
             return;
         }
 
@@ -91,23 +120,39 @@ public class GameWebSocketHandler
 
             if (movementEvent is null)
             {
-                await SendErrorAsync(webSocket, "GameService rejected movement");
+                await SendErrorAsync(
+                    webSocket,
+                    "GameService rejected movement"
+                );
+
                 return;
             }
 
-            await SendJsonAsync(webSocket, movementEvent);
+            await _connectionManager.BroadcastToMatchAsync(
+                connectionMatchId,
+                movementEvent
+            );
         }
         catch (InvalidOperationException exception)
         {
-            await SendErrorAsync(webSocket, exception.Message);
+            await SendErrorAsync(
+                webSocket,
+                exception.Message
+            );
         }
         catch (HttpRequestException)
         {
-            await SendErrorAsync(webSocket, "GameService is not available");
+            await SendErrorAsync(
+                webSocket,
+                "GameService is not available"
+            );
         }
         catch (Exception exception)
         {
-            await SendErrorAsync(webSocket, $"Unexpected error: {exception.Message}");
+            await SendErrorAsync(
+                webSocket,
+                $"Unexpected error: {exception.Message}"
+            );
         }
     }
 
@@ -122,9 +167,17 @@ public class GameWebSocketHandler
         await SendJsonAsync(webSocket, payload);
     }
 
-    private static async Task SendJsonAsync(WebSocket webSocket, object payload)
+    private static async Task SendJsonAsync(
+        WebSocket webSocket,
+        object payload)
     {
-        var json = JsonSerializer.Serialize(payload);
+        var json = JsonSerializer.Serialize(
+            payload,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            }
+        );
 
         var bytes = Encoding.UTF8.GetBytes(json);
 
