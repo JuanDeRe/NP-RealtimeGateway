@@ -49,6 +49,20 @@ public class GameServiceClient : IGameServiceClient
         string matchId,
         string playerId)
     {
+        var match = await GetMatchAsync(matchId);
+
+        if (match is null)
+        {
+            return false;
+        }
+
+        return match.Players.Any(
+            player => player.PlayerId == playerId
+        );
+    }
+    public async Task<GameSessionResponse?> GetMatchAsync(
+        string matchId)
+    {
         try
         {
             var url =
@@ -58,28 +72,19 @@ public class GameServiceClient : IGameServiceClient
 
             if (!response.IsSuccessStatusCode)
             {
-                return false;
+                return null;
             }
 
-            var match = await response.Content
+            return await response.Content
                 .ReadFromJsonAsync<GameSessionResponse>();
-
-            if (match is null)
-            {
-                return false;
-            }
-
-            return match.Players.Any(
-                player => player.PlayerId == playerId
-            );
         }
         catch (HttpRequestException)
         {
-            return false;
+            return null;
         }
         catch (TaskCanceledException)
         {
-            return false;
+            return null;
         }
     }
 }

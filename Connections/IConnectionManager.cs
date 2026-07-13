@@ -21,4 +21,9 @@ public interface IConnectionManager
         object payload,
         CancellationToken cancellationToken = default
     );
+    Task SendToConnectionAsync(
+        PlayerConnection connection,
+        object payload,
+        CancellationToken cancellationToken = default
+    );
 }

@@ -6,5 +6,13 @@ public class GameSessionResponse
 
     public string Status { get; set; } = string.Empty;
 
+    public string Winner { get; set; } = string.Empty;
+
+    public int DurationSeconds { get; set; }
+
+    public DateTime? StartedAtUtc { get; set; }
+
+    public DateTime? FinishedAtUtc { get; set; }
+
     public List<GameSessionPlayerResponse> Players { get; set; } = [];
 }

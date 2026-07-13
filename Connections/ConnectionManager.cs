@@ -108,4 +108,22 @@ public class ConnectionManager : IConnectionManager
             connection.SendLock.Release();
         }
     }
+    public async Task SendToConnectionAsync(
+        PlayerConnection connection,
+        object payload,
+        CancellationToken cancellationToken = default)
+    {
+        var json = JsonSerializer.Serialize(
+            payload,
+            JsonOptions
+        );
+
+        var bytes = Encoding.UTF8.GetBytes(json);
+
+        await SendAsync(
+            connection,
+            bytes,
+            cancellationToken
+        );
+    }
 }

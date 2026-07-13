@@ -12,4 +12,5 @@ public interface IGameServiceClient
         MoveCommandMessage message,
         string playerId
     );
+    Task<GameSessionResponse?> GetMatchAsync(string matchId);
 }

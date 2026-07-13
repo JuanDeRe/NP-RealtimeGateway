@@ -6,6 +6,7 @@ using RealtimeGateway.Security;
 using RealtimeGateway.Services;
 using RealtimeGateway.WebSockets;
 using RealtimeGateway.Connections;
+using RealtimeGateway.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -142,6 +143,38 @@ app.Map("/game-ws", async context =>
         matchId,
         webSocket
     );
+
+    var currentMatch =
+        await gameServiceClient.GetMatchAsync(matchId);
+
+    if (currentMatch is not null)
+    {
+        var snapshot = new MatchSnapshotEvent
+        {
+            MatchId = currentMatch.MatchId,
+            Status = currentMatch.Status,
+            DurationSeconds = currentMatch.DurationSeconds,
+            StartedAtUtc = currentMatch.StartedAtUtc,
+
+            Players = currentMatch.Players
+                .Select(player => new MatchSnapshotPlayer
+                {
+                    PlayerId = player.PlayerId,
+                    Role = player.Role,
+                    AnimatronicType = player.AnimatronicType,
+                    X = player.Position.X,
+                    Y = player.Position.Y,
+                    RoomId = player.CurrentRoomId,
+                    IsConnected = player.IsConnected
+                })
+                .ToList()
+        };
+
+        await connectionManager.SendToConnectionAsync(
+            playerConnection,
+            snapshot
+        );
+    }
 
     var handler = context.RequestServices
         .GetRequiredService<GameWebSocketHandler>();
