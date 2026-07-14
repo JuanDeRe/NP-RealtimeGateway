@@ -155,6 +155,13 @@ app.Map("/game-ws", async context =>
             Status = currentMatch.Status,
             DurationSeconds = currentMatch.DurationSeconds,
             StartedAtUtc = currentMatch.StartedAtUtc,
+            Doors = currentMatch.Doors
+                .Select(door => new MatchSnapshotDoor
+                {
+                    DoorId = door.DoorId,
+                    IsClosed = door.IsClosed
+                })
+                .ToList(),
 
             Players = currentMatch.Players
                 .Select(player => new MatchSnapshotPlayer

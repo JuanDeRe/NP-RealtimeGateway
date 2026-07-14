@@ -15,4 +15,6 @@ public class GameSessionResponse
     public DateTime? FinishedAtUtc { get; set; }
 
     public List<GameSessionPlayerResponse> Players { get; set; } = [];
+    
+    public List<GameSessionDoorResponse> Doors { get; set; } = [];
 }

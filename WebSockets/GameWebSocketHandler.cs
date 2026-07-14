@@ -72,6 +72,17 @@ public class GameWebSocketHandler
                 );                
                 continue;
             }
+            if (baseMessage.Type == "SetDoorStateCommand")
+            {
+                await HandleSetDoorStateCommandAsync(
+                    webSocket,
+                    json,
+                    connection,
+                    matchId
+                );
+
+                continue;
+            }
 
             await SendErrorAsync(webSocket, $"Unsupported message type: {baseMessage.Type}");
         }
@@ -187,5 +198,87 @@ public class GameWebSocketHandler
             true,
             CancellationToken.None
         );
+    }
+    private async Task HandleSetDoorStateCommandAsync(
+        WebSocket webSocket,
+        string json,
+        AuthenticatedConnection connection,
+        string connectionMatchId)
+    {
+        var command = JsonSerializer.Deserialize<SetDoorStateMessage>(
+            json,
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }
+        );
+
+        if (command is null)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "Invalid SetDoorStateCommand payload."
+            );
+
+            return;
+        }
+
+        if (command.MatchId != connectionMatchId)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "Command match does not match the active connection."
+            );
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(command.DoorId))
+        {
+            await SendErrorAsync(
+                webSocket,
+                "DoorId is required."
+            );
+
+            return;
+        }
+
+        try
+        {
+            var doorEvent =
+                await _gameServiceClient.SetDoorStateAsync(
+                    command,
+                    connection.PlayerId
+                );
+
+            if (doorEvent is null)
+            {
+                await SendErrorAsync(
+                    webSocket,
+                    "GameService rejected the door command."
+                );
+
+                return;
+            }
+
+            await _connectionManager.BroadcastToMatchAsync(
+                connectionMatchId,
+                doorEvent
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            await SendErrorAsync(
+                webSocket,
+                exception.Message
+            );
+        }
+        catch (HttpRequestException)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "GameService is not available."
+            );
+        }
     }
 }

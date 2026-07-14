@@ -87,4 +87,39 @@ public class GameServiceClient : IGameServiceClient
             return null;
         }
     }
+    public async Task<DoorStateChangedEvent?> SetDoorStateAsync(
+        SetDoorStateMessage message,
+        string playerId)
+    {
+        var command = new GameServiceSetDoorStateCommand
+        {
+            PlayerId = playerId,
+            DoorId = message.DoorId,
+            IsClosed = message.IsClosed
+        };
+
+        var url =
+            $"{_options.BaseUrl}" +
+            $"/game/matches/{message.MatchId}" +
+            "/gameplay/doors/state";
+
+        var response = await _httpClient.PostAsJsonAsync(
+            url,
+            command
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content
+                .ReadFromJsonAsync<ErrorResponse>();
+
+            throw new InvalidOperationException(
+                error?.Message ??
+                "GameService rejected the door command."
+            );
+        }
+
+        return await response.Content
+            .ReadFromJsonAsync<DoorStateChangedEvent>();
+    }
 }

@@ -13,4 +13,9 @@ public interface IGameServiceClient
         string playerId
     );
     Task<GameSessionResponse?> GetMatchAsync(string matchId);
+    
+    Task<DoorStateChangedEvent?> SetDoorStateAsync(
+        SetDoorStateMessage message,
+        string playerId
+    );
 }

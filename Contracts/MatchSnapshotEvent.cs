@@ -13,4 +13,6 @@ public class MatchSnapshotEvent
     public DateTime? StartedAtUtc { get; set; }
 
     public List<MatchSnapshotPlayer> Players { get; set; } = [];
+    
+    public List<MatchSnapshotDoor> Doors { get; set; } = [];
 }
