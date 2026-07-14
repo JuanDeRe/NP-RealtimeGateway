@@ -122,4 +122,39 @@ public class GameServiceClient : IGameServiceClient
         return await response.Content
             .ReadFromJsonAsync<DoorStateChangedEvent>();
     }
+    public async Task<ActiveCameraChangedEvent?>
+        ChangeCameraAsync(
+            ChangeCameraMessage message,
+            string playerId)
+    {
+        var command = new GameServiceChangeCameraCommand
+        {
+            PlayerId = playerId,
+            CameraId = message.CameraId
+        };
+
+        var url =
+            $"{_options.BaseUrl}" +
+            $"/game/matches/{message.MatchId}" +
+            "/gameplay/cameras/active";
+
+        var response = await _httpClient.PostAsJsonAsync(
+            url,
+            command
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content
+                .ReadFromJsonAsync<ErrorResponse>();
+
+            throw new InvalidOperationException(
+                error?.Message ??
+                "GameService rejected the camera command."
+            );
+        }
+
+        return await response.Content
+            .ReadFromJsonAsync<ActiveCameraChangedEvent>();
+    }
 }

@@ -155,6 +155,7 @@ app.Map("/game-ws", async context =>
             Status = currentMatch.Status,
             DurationSeconds = currentMatch.DurationSeconds,
             StartedAtUtc = currentMatch.StartedAtUtc,
+            ActiveCameraId = currentMatch.ActiveCameraId,
             Doors = currentMatch.Doors
                 .Select(door => new MatchSnapshotDoor
                 {

@@ -83,6 +83,17 @@ public class GameWebSocketHandler
 
                 continue;
             }
+            if (baseMessage.Type == "ChangeCameraCommand")
+            {
+                await HandleChangeCameraCommandAsync(
+                    webSocket,
+                    json,
+                    connection,
+                    matchId
+                );
+
+                continue;
+            }
 
             await SendErrorAsync(webSocket, $"Unsupported message type: {baseMessage.Type}");
         }
@@ -264,6 +275,79 @@ public class GameWebSocketHandler
             await _connectionManager.BroadcastToMatchAsync(
                 connectionMatchId,
                 doorEvent
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            await SendErrorAsync(
+                webSocket,
+                exception.Message
+            );
+        }
+        catch (HttpRequestException)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "GameService is not available."
+            );
+        }
+    }
+    private async Task HandleChangeCameraCommandAsync(
+        WebSocket webSocket,
+        string json,
+        AuthenticatedConnection connection,
+        string connectionMatchId)
+    {
+        var command =
+            JsonSerializer.Deserialize<ChangeCameraMessage>(
+                json,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                }
+            );
+
+        if (command is null)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "Invalid ChangeCameraCommand payload."
+            );
+
+            return;
+        }
+
+        if (command.MatchId != connectionMatchId)
+        {
+            await SendErrorAsync(
+                webSocket,
+                "Command match does not match the active connection."
+            );
+
+            return;
+        }
+
+        try
+        {
+            var cameraEvent =
+                await _gameServiceClient.ChangeCameraAsync(
+                    command,
+                    connection.PlayerId
+                );
+
+            if (cameraEvent is null)
+            {
+                await SendErrorAsync(
+                    webSocket,
+                    "GameService rejected the camera command."
+                );
+
+                return;
+            }
+
+            await _connectionManager.BroadcastToMatchAsync(
+                connectionMatchId,
+                cameraEvent
             );
         }
         catch (InvalidOperationException exception)

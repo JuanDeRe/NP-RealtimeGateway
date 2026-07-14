@@ -15,4 +15,7 @@ public class MatchSnapshotEvent
     public List<MatchSnapshotPlayer> Players { get; set; } = [];
     
     public List<MatchSnapshotDoor> Doors { get; set; } = [];
+    
+    
+    public string? ActiveCameraId { get; set; }
 }

@@ -18,4 +18,10 @@ public interface IGameServiceClient
         SetDoorStateMessage message,
         string playerId
     );
+    
+    Task<ActiveCameraChangedEvent?> ChangeCameraAsync(
+            ChangeCameraMessage message,
+            string playerId
+    );
+        
 }
