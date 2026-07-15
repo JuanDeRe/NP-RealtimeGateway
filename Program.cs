@@ -146,15 +146,20 @@ app.Map("/game-ws", async context =>
 
     var currentMatch =
         await gameServiceClient.GetMatchAsync(matchId);
+    
 
     if (currentMatch is not null)
     {
+        var serverNowUtc = DateTime.UtcNow;
+        var endsAtUtc = currentMatch.StartedAtUtc?.AddSeconds(currentMatch.DurationSeconds);
         var snapshot = new MatchSnapshotEvent
         {
             MatchId = currentMatch.MatchId,
             Status = currentMatch.Status,
             DurationSeconds = currentMatch.DurationSeconds,
             StartedAtUtc = currentMatch.StartedAtUtc,
+            ServerNowUtc = serverNowUtc,
+            EndsAtUtc = endsAtUtc,
             ActiveCameraId = currentMatch.ActiveCameraId,
             Doors = currentMatch.Doors
                 .Select(door => new MatchSnapshotDoor
@@ -175,9 +180,31 @@ app.Map("/game-ws", async context =>
                     RoomId = player.CurrentRoomId,
                     IsConnected = player.IsConnected
                 })
-                .ToList()
-        };
+                .ToList(),
+            Collectibles = currentMatch.Collectibles
+            .Where(collectible =>
+            collectible.OwnerPlayerId ==
+            authenticatedConnection.PlayerId &&
+            !collectible.IsCollected
+            )
+            .Select(collectible =>
+            new MatchSnapshotCollectible
+            {
+            CollectibleId =
+            collectible.CollectibleId,
 
+            Type = collectible.Type,
+
+            OwnerPlayerId =
+                collectible.OwnerPlayerId,
+
+            X = collectible.Position.X,
+            Y = collectible.Position.Y,
+
+            RoomId = collectible.RoomId
+        })
+        .ToList()
+        };
         await connectionManager.SendToConnectionAsync(
             playerConnection,
             snapshot

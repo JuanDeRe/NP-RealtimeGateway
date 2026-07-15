@@ -18,5 +18,8 @@ public class GameSessionResponse
     
     public List<GameSessionDoorResponse> Doors { get; set; } = [];
     
+    public List<GameSessionCollectibleResponse>
+        Collectibles { get; set; } = [];
+    
     public string? ActiveCameraId { get; set; }
 }

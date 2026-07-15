@@ -16,6 +16,12 @@ public class MatchSnapshotEvent
     
     public List<MatchSnapshotDoor> Doors { get; set; } = [];
     
+    public DateTime ServerNowUtc { get; set; }
+
+    public DateTime? EndsAtUtc { get; set; }
+    
+    public List<MatchSnapshotCollectible>
+        Collectibles { get; set; } = [];
     
     public string? ActiveCameraId { get; set; }
 }

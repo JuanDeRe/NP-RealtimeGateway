@@ -13,4 +13,11 @@ public class PlayerMovedEvent
     public float Y { get; set; }
 
     public string RoomId { get; set; } = string.Empty;
+    public string? CollectedCollectibleId { get; set; }
+
+    public int CollectedItems { get; set; }
+
+    public int RequiredItems { get; set; }
+
+    public bool IsEmpowered { get; set; }
 }
