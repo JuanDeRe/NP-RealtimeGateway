@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using RealtimeGateway.Configuration;
 using RealtimeGateway.Connections;
 using RealtimeGateway.Contracts;
+using RealtimeGateway.Routing;
 using StackExchange.Redis;
 
 namespace RealtimeGateway.BackgroundServices;
@@ -19,18 +20,20 @@ public class MatchEventStreamProcessor
     private readonly IConnectionMultiplexer _redis;
     private readonly IConnectionManager _connectionManager;
     private readonly RedisOptions _options;
-
+    private readonly IMatchRouteResolver _matchRouteResolver;
     private readonly ILogger<MatchEventStreamProcessor>
         _logger;
 
     public MatchEventStreamProcessor(
         IConnectionMultiplexer redis,
         IConnectionManager connectionManager,
+        IMatchRouteResolver matchRouteResolver,
         IOptions<RedisOptions> options,
         ILogger<MatchEventStreamProcessor> logger)
     {
         _redis = redis;
         _connectionManager = connectionManager;
+        _matchRouteResolver = matchRouteResolver;
         _options = options.Value;
         _logger = logger;
     }
@@ -163,7 +166,8 @@ public class MatchEventStreamProcessor
             matchFinishedEvent,
             cancellationToken
         );
-
+        _matchRouteResolver.RemoveRoute(
+            matchFinishedEvent.MatchId);
         _logger.LogInformation(
             "Broadcast MatchFinished for match " +
             "{MatchId} to local WebSocket clients",

@@ -8,6 +8,7 @@ using RealtimeGateway.Services;
 using RealtimeGateway.WebSockets;
 using RealtimeGateway.Connections;
 using RealtimeGateway.Contracts;
+using RealtimeGateway.Routing;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -73,7 +74,11 @@ builder.Services.AddSingleton<
     IConnectionManager,
     ConnectionManager
 >();
-
+builder.Services.AddSingleton<
+    IMatchRouteResolver,
+    RedisMatchRouteResolver
+>();
+builder.Services.AddHealthChecks();
 var app = builder.Build();
 
 app.UseCors("UnityWebClient");
@@ -264,5 +269,5 @@ app.Map("/game-ws", async context =>
         );
     }
 });
-
+app.MapHealthChecks("/health");
 app.Run();

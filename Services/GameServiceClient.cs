@@ -1,28 +1,38 @@
 ﻿using System.Net.Http.Json;
-using Microsoft.Extensions.Options;
-using RealtimeGateway.Configuration;
 using RealtimeGateway.Contracts;
+using RealtimeGateway.Routing;
 
 namespace RealtimeGateway.Services;
 
+/// <summary>
+/// Sends gameplay requests to the GameService instance
+/// that owns each match.
+/// </summary>
 public class GameServiceClient : IGameServiceClient
 {
     private readonly HttpClient _httpClient;
-    private readonly GameServiceOptions _options;
+    private readonly IMatchRouteResolver _matchRouteResolver;
+    private readonly ILogger<GameServiceClient> _logger;
 
     public GameServiceClient(
         HttpClient httpClient,
-        IOptions<GameServiceOptions> options)
+        IMatchRouteResolver matchRouteResolver,
+        ILogger<GameServiceClient> logger)
     {
         _httpClient = httpClient;
-        _options = options.Value;
+        _matchRouteResolver = matchRouteResolver;
+        _logger = logger;
     }
 
     public async Task<PlayerMovedEvent?> MoveAsync(
         MoveCommandMessage message,
         string playerId)
     {
-        var request = new GameServiceMoveCommand
+        var baseUrl = GetRequiredGameServiceUrl(
+            message.MatchId
+        );
+
+        var command = new GameServiceMoveCommand
         {
             PlayerId = playerId,
             DirectionX = message.DirectionX,
@@ -30,21 +40,59 @@ public class GameServiceClient : IGameServiceClient
             DeltaTime = message.DeltaTime
         };
 
-        var url = $"{_options.BaseUrl}/game/matches/{message.MatchId}/gameplay/move";
+        var url =
+            $"{baseUrl}" +
+            $"/game/matches/{message.MatchId}" +
+            "/gameplay/move";
 
-        var response = await _httpClient.PostAsJsonAsync(url, request);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            var response = await _httpClient.PostAsJsonAsync(
+                url,
+                command
+            );
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateGameServiceExceptionAsync(
+                    response,
+                    "GameService rejected movement."
+                );
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<PlayerMovedEvent>();
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Could not send movement for match {MatchId} " +
+                "to {GameServiceUrl}",
+                message.MatchId,
+                baseUrl
+            );
 
             throw new InvalidOperationException(
-                error?.Message ?? "GameService rejected movement"
+                "GameService is not available.",
+                exception
             );
         }
+        catch (TaskCanceledException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Movement request timed out for match {MatchId}",
+                message.MatchId
+            );
 
-        return await response.Content.ReadFromJsonAsync<PlayerMovedEvent>();
+            throw new InvalidOperationException(
+                "GameService request timed out.",
+                exception
+            );
+        }
     }
+
     public async Task<bool> IsPlayerInMatchAsync(
         string matchId,
         string playerId)
@@ -60,37 +108,85 @@ public class GameServiceClient : IGameServiceClient
             player => player.PlayerId == playerId
         );
     }
+
     public async Task<GameSessionResponse?> GetMatchAsync(
         string matchId)
     {
+        string baseUrl;
+
         try
         {
-            var url =
-                $"{_options.BaseUrl}/game/matches/{matchId}";
+            baseUrl = GetRequiredGameServiceUrl(matchId);
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "No GameService route is available for match {MatchId}",
+                matchId
+            );
 
+            return null;
+        }
+
+        var url =
+            $"{baseUrl}/game/matches/{matchId}";
+
+        try
+        {
             var response = await _httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
+                var responseBody = await response.Content
+                    .ReadAsStringAsync();
+
+                _logger.LogWarning(
+                    "GameService rejected match query. " +
+                    "MatchId={MatchId}, Status={StatusCode}, " +
+                    "Body={ResponseBody}",
+                    matchId,
+                    response.StatusCode,
+                    responseBody
+                );
+
                 return null;
             }
 
             return await response.Content
                 .ReadFromJsonAsync<GameSessionResponse>();
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException exception)
         {
+            _logger.LogError(
+                exception,
+                "Could not query match {MatchId} from {GameServiceUrl}",
+                matchId,
+                baseUrl
+            );
+
             return null;
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException exception)
         {
+            _logger.LogError(
+                exception,
+                "Match query timed out for match {MatchId}",
+                matchId
+            );
+
             return null;
         }
     }
+
     public async Task<DoorStateChangedEvent?> SetDoorStateAsync(
         SetDoorStateMessage message,
         string playerId)
     {
+        var baseUrl = GetRequiredGameServiceUrl(
+            message.MatchId
+        );
+
         var command = new GameServiceSetDoorStateCommand
         {
             PlayerId = playerId,
@@ -99,34 +195,66 @@ public class GameServiceClient : IGameServiceClient
         };
 
         var url =
-            $"{_options.BaseUrl}" +
+            $"{baseUrl}" +
             $"/game/matches/{message.MatchId}" +
             "/gameplay/doors/state";
 
-        var response = await _httpClient.PostAsJsonAsync(
-            url,
-            command
-        );
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var error = await response.Content
-                .ReadFromJsonAsync<ErrorResponse>();
+            var response = await _httpClient.PostAsJsonAsync(
+                url,
+                command
+            );
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateGameServiceExceptionAsync(
+                    response,
+                    "GameService rejected the door command."
+                );
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<DoorStateChangedEvent>();
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Could not update door {DoorId} in match {MatchId}",
+                message.DoorId,
+                message.MatchId
+            );
 
             throw new InvalidOperationException(
-                error?.Message ??
-                "GameService rejected the door command."
+                "GameService is not available.",
+                exception
             );
         }
+        catch (TaskCanceledException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Door request timed out for match {MatchId}",
+                message.MatchId
+            );
 
-        return await response.Content
-            .ReadFromJsonAsync<DoorStateChangedEvent>();
+            throw new InvalidOperationException(
+                "GameService request timed out.",
+                exception
+            );
+        }
     }
+
     public async Task<ActiveCameraChangedEvent?>
         ChangeCameraAsync(
             ChangeCameraMessage message,
             string playerId)
     {
+        var baseUrl = GetRequiredGameServiceUrl(
+            message.MatchId
+        );
+
         var command = new GameServiceChangeCameraCommand
         {
             PlayerId = playerId,
@@ -134,27 +262,117 @@ public class GameServiceClient : IGameServiceClient
         };
 
         var url =
-            $"{_options.BaseUrl}" +
+            $"{baseUrl}" +
             $"/game/matches/{message.MatchId}" +
             "/gameplay/cameras/active";
 
-        var response = await _httpClient.PostAsJsonAsync(
-            url,
-            command
-        );
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                url,
+                command
+            );
 
-        if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateGameServiceExceptionAsync(
+                    response,
+                    "GameService rejected the camera command."
+                );
+            }
+
+            return await response.Content
+                .ReadFromJsonAsync<ActiveCameraChangedEvent>();
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Could not change the active camera in match {MatchId}",
+                message.MatchId
+            );
+
+            throw new InvalidOperationException(
+                "GameService is not available.",
+                exception
+            );
+        }
+        catch (TaskCanceledException exception)
+        {
+            _logger.LogError(
+                exception,
+                "Camera request timed out for match {MatchId}",
+                message.MatchId
+            );
+
+            throw new InvalidOperationException(
+                "GameService request timed out.",
+                exception
+            );
+        }
+    }
+
+    private string GetRequiredGameServiceUrl(
+        string matchId)
+    {
+        if (string.IsNullOrWhiteSpace(matchId))
+        {
+            throw new InvalidOperationException(
+                "MatchId is required to resolve GameService."
+            );
+        }
+
+        var baseUrl =
+            _matchRouteResolver.GetGameServiceUrl(
+                matchId
+            );
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new InvalidOperationException(
+                $"No GameService route was found " +
+                $"for match '{matchId}'."
+            );
+        }
+
+        return baseUrl.TrimEnd('/');
+    }
+
+    private static async Task<InvalidOperationException>
+        CreateGameServiceExceptionAsync(
+            HttpResponseMessage response,
+            string fallbackMessage)
+    {
+        try
         {
             var error = await response.Content
                 .ReadFromJsonAsync<ErrorResponse>();
 
-            throw new InvalidOperationException(
-                error?.Message ??
-                "GameService rejected the camera command."
+            if (error is not null &&
+                !string.IsNullOrWhiteSpace(error.Message))
+            {
+                return new InvalidOperationException(
+                    error.Message
+                );
+            }
+        }
+        catch
+        {
+            // Si la respuesta no era JSON, se intenta leer como texto.
+        }
+
+        var responseBody = await response.Content
+            .ReadAsStringAsync();
+
+        if (!string.IsNullOrWhiteSpace(responseBody))
+        {
+            return new InvalidOperationException(
+                responseBody
             );
         }
 
-        return await response.Content
-            .ReadFromJsonAsync<ActiveCameraChangedEvent>();
+        return new InvalidOperationException(
+            fallbackMessage
+        );
     }
 }
