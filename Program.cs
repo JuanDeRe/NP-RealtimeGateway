@@ -1,3 +1,4 @@
+using RealtimeGateway.BackgroundServices;
 using RealtimeGateway.Configuration;
 using RealtimeGateway.Services;
 using RealtimeGateway.WebSockets;
@@ -7,6 +8,7 @@ using RealtimeGateway.Services;
 using RealtimeGateway.WebSockets;
 using RealtimeGateway.Connections;
 using RealtimeGateway.Contracts;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +24,39 @@ builder.Services.AddSingleton<IJwtTokenValidator, JwtTokenValidator>();
 builder.Services.AddHttpClient<IGameServiceClient, GameServiceClient>();
 
 builder.Services.AddScoped<GameWebSocketHandler>();
+
+builder.Services.Configure<RedisOptions>(
+    builder.Configuration.GetSection("Redis")
+);
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    serviceProvider =>
+    {
+        var options = serviceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<
+                    RedisOptions
+                >
+            >()
+            .Value;
+
+        var configuration =
+            ConfigurationOptions.Parse(
+                options.ConnectionString
+            );
+
+        configuration.AbortOnConnectFail = false;
+        configuration.ConnectRetry = 3;
+        configuration.ConnectTimeout = 5000;
+
+        return ConnectionMultiplexer.Connect(
+            configuration
+        );
+    }
+);
+builder.Services.AddHostedService<
+    MatchEventStreamProcessor
+>();
 
 builder.Services.AddCors(options =>
 {
