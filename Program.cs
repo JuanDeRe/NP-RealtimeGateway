@@ -11,7 +11,12 @@ using Amazon.CloudWatch;
 using RealtimeGateway.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
-
+var allowedOrigins =
+    builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>()
+    ?? Array.Empty<string>();
+    
 builder.Services.Configure<GameServiceOptions>(
     builder.Configuration.GetSection("GameService")
 );
@@ -113,6 +118,26 @@ app.Map("/game-ws", async context =>
 
         await context.Response.WriteAsync(
             "WebSocket request expected"
+        );
+
+        return;
+    }
+    var origin =
+        context.Request.Headers.Origin.ToString();
+
+    var originAllowed =
+        IsAllowedOrigin(
+            origin,
+            allowedOrigins
+        );
+
+    if (!originAllowed)
+    {
+        context.Response.StatusCode =
+            StatusCodes.Status403Forbidden;
+
+        await context.Response.WriteAsync(
+            "WebSocket origin is not allowed."
         );
 
         return;
@@ -287,4 +312,48 @@ app.Map("/game-ws", async context =>
     }
 });
 app.MapHealthChecks("/health");
+static bool IsAllowedOrigin(
+    string origin,
+    IReadOnlyCollection<string> allowedOrigins)
+{
+    if (string.IsNullOrWhiteSpace(origin))
+    {
+        return false;
+    }
+
+    if (!Uri.TryCreate(
+            origin,
+            UriKind.Absolute,
+            out var uri))
+    {
+        return false;
+    }
+
+    var isLocalDevelopment =
+        uri.Host.Equals(
+            "localhost",
+            StringComparison.OrdinalIgnoreCase
+        ) ||
+        uri.Host.Equals(
+            "127.0.0.1",
+            StringComparison.OrdinalIgnoreCase
+        );
+
+    if (isLocalDevelopment)
+    {
+        return true;
+    }
+
+    var normalizedOrigin =
+        origin.TrimEnd('/');
+
+    return allowedOrigins.Any(
+        allowedOrigin =>
+            string.Equals(
+                allowedOrigin.TrimEnd('/'),
+                normalizedOrigin,
+                StringComparison.OrdinalIgnoreCase
+            )
+    );
+}
 app.Run();
