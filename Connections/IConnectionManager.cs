@@ -4,6 +4,7 @@ namespace RealtimeGateway.Connections;
 
 public interface IConnectionManager
 {
+    int ConnectedCount { get; }
     PlayerConnection Add(
         string playerId,
         string matchId,

@@ -1,7 +1,6 @@
-﻿using System.Net.Http.Json;
-using RealtimeGateway.Contracts;
+﻿using RealtimeGateway.Contracts;
 using RealtimeGateway.Routing;
-
+using RealtimeGateway.Observability;
 namespace RealtimeGateway.Services;
 
 /// <summary>
@@ -13,15 +12,18 @@ public class GameServiceClient : IGameServiceClient
     private readonly HttpClient _httpClient;
     private readonly IMatchRouteResolver _matchRouteResolver;
     private readonly ILogger<GameServiceClient> _logger;
+    private readonly IGatewayMetrics _metrics;
 
     public GameServiceClient(
         HttpClient httpClient,
         IMatchRouteResolver matchRouteResolver,
-        ILogger<GameServiceClient> logger)
+        ILogger<GameServiceClient> logger,
+        IGatewayMetrics metrics)
     {
         _httpClient = httpClient;
         _matchRouteResolver = matchRouteResolver;
         _logger = logger;
+        _metrics = metrics;
     }
 
     public async Task<PlayerMovedEvent?> MoveAsync(
@@ -54,6 +56,7 @@ public class GameServiceClient : IGameServiceClient
 
             if (!response.IsSuccessStatusCode)
             {
+                _metrics.RecordGameServiceRequestFailure();
                 throw await CreateGameServiceExceptionAsync(
                     response,
                     "GameService rejected movement."
@@ -65,6 +68,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (HttpRequestException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Could not send movement for match {MatchId} " +
@@ -80,6 +84,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (TaskCanceledException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Movement request timed out for match {MatchId}",
@@ -138,6 +143,7 @@ public class GameServiceClient : IGameServiceClient
 
             if (!response.IsSuccessStatusCode)
             {
+                _metrics.RecordGameServiceRequestFailure();
                 var responseBody = await response.Content
                     .ReadAsStringAsync();
 
@@ -158,6 +164,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (HttpRequestException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Could not query match {MatchId} from {GameServiceUrl}",
@@ -169,6 +176,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (TaskCanceledException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Match query timed out for match {MatchId}",
@@ -208,6 +216,7 @@ public class GameServiceClient : IGameServiceClient
 
             if (!response.IsSuccessStatusCode)
             {
+                _metrics.RecordGameServiceRequestFailure();
                 throw await CreateGameServiceExceptionAsync(
                     response,
                     "GameService rejected the door command."
@@ -219,6 +228,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (HttpRequestException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Could not update door {DoorId} in match {MatchId}",
@@ -233,6 +243,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (TaskCanceledException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Door request timed out for match {MatchId}",
@@ -275,6 +286,7 @@ public class GameServiceClient : IGameServiceClient
 
             if (!response.IsSuccessStatusCode)
             {
+                _metrics.RecordGameServiceRequestFailure();
                 throw await CreateGameServiceExceptionAsync(
                     response,
                     "GameService rejected the camera command."
@@ -286,6 +298,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (HttpRequestException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Could not change the active camera in match {MatchId}",
@@ -299,6 +312,7 @@ public class GameServiceClient : IGameServiceClient
         }
         catch (TaskCanceledException exception)
         {
+            _metrics.RecordGameServiceRequestFailure();
             _logger.LogError(
                 exception,
                 "Camera request timed out for match {MatchId}",
@@ -317,6 +331,8 @@ public class GameServiceClient : IGameServiceClient
     {
         if (string.IsNullOrWhiteSpace(matchId))
         {
+            _metrics.RecordRoutingFailure();
+
             throw new InvalidOperationException(
                 "MatchId is required to resolve GameService."
             );
@@ -329,6 +345,8 @@ public class GameServiceClient : IGameServiceClient
 
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
+            _metrics.RecordRoutingFailure();
+
             throw new InvalidOperationException(
                 $"No GameService route was found " +
                 $"for match '{matchId}'."

@@ -2,14 +2,13 @@ using RealtimeGateway.BackgroundServices;
 using RealtimeGateway.Configuration;
 using RealtimeGateway.Services;
 using RealtimeGateway.WebSockets;
-using RealtimeGateway.Configuration;
 using RealtimeGateway.Security;
-using RealtimeGateway.Services;
-using RealtimeGateway.WebSockets;
 using RealtimeGateway.Connections;
 using RealtimeGateway.Contracts;
 using RealtimeGateway.Routing;
 using StackExchange.Redis;
+using Amazon.CloudWatch;
+using RealtimeGateway.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +28,24 @@ builder.Services.AddScoped<GameWebSocketHandler>();
 builder.Services.Configure<RedisOptions>(
     builder.Configuration.GetSection("Redis")
 );
+builder.Services.Configure<GatewayMetricsOptions>(
+    builder.Configuration.GetSection(
+        GatewayMetricsOptions.SectionName
+    )
+);
+
+builder.Services.AddSingleton<
+    IGatewayMetrics,
+    GatewayMetrics
+>();
+
+builder.Services.AddSingleton<IAmazonCloudWatch>(
+    _ => new AmazonCloudWatchClient()
+);
+
+builder.Services.AddHostedService<
+    CloudWatchGatewayMetricsPublisher
+>();
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     serviceProvider =>

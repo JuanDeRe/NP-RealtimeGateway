@@ -17,6 +17,11 @@ public class ConnectionManager : IConnectionManager
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+    public int ConnectedCount =>
+        _connections.Values.Count(connection =>
+            connection.WebSocket.State ==
+            WebSocketState.Open
+        );
 
     public PlayerConnection Add(
         string playerId,
