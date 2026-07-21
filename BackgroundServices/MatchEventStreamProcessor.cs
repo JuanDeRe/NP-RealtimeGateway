@@ -48,9 +48,10 @@ public class MatchEventStreamProcessor
             $"consumers:gateway:" +
             $"{_options.ConsumerId}:last-event-id";
 
-        var storedCursor = database.StringGet(
-            cursorKey
-        );
+        var storedCursor =
+            await database.StringGetAsync(
+                cursorKey
+            );
 
         var lastEventId = storedCursor.HasValue
             ? storedCursor.ToString()
@@ -67,11 +68,12 @@ public class MatchEventStreamProcessor
         {
             try
             {
-                var entries = database.StreamRead(
-                    StreamKey,
-                    lastEventId,
-                    count: 20
-                );
+                var entries =
+                    await database.StreamReadAsync(
+                        StreamKey,
+                        lastEventId,
+                        count: 20
+                    );
 
                 foreach (var entry in entries)
                 {
@@ -82,7 +84,7 @@ public class MatchEventStreamProcessor
 
                     lastEventId = entry.Id.ToString();
 
-                    database.StringSet(
+                    await database.StringSetAsync(
                         cursorKey,
                         lastEventId
                     );

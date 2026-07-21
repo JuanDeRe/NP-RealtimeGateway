@@ -1,9 +1,9 @@
-﻿using System.Text.Json;
+﻿using System.Collections.Concurrent;
+using System.Text.Json;
+using Microsoft.Extensions.Options;
 using RealtimeGateway.Configuration;
 using RealtimeGateway.Models;
-using Microsoft.Extensions.Options;
 using StackExchange.Redis;
-using RealtimeGateway.Routing;
 
 namespace RealtimeGateway.Routing;
 
@@ -13,14 +13,22 @@ namespace RealtimeGateway.Routing;
 public class RedisMatchRouteResolver
     : IMatchRouteResolver
 {
-    private static readonly JsonSerializerOptions JsonOptions =
-        new()
+    private static readonly JsonSerializerOptions
+        JsonOptions = new()
         {
             PropertyNamingPolicy =
                 JsonNamingPolicy.CamelCase,
 
             PropertyNameCaseInsensitive = true
         };
+
+    private static readonly TimeSpan CacheDuration =
+        TimeSpan.FromSeconds(60);
+
+    private readonly ConcurrentDictionary<
+        string,
+        CachedRoute
+    > _cache = new();
 
     private readonly IConnectionMultiplexer _redis;
     private readonly RedisOptions _options;
@@ -40,6 +48,22 @@ public class RedisMatchRouteResolver
             return null;
         }
 
+        if (_cache.TryGetValue(
+                matchId,
+                out var cachedRoute))
+        {
+            if (cachedRoute.ExpiresAtUtc >
+                DateTime.UtcNow)
+            {
+                return cachedRoute.Route;
+            }
+
+            _cache.TryRemove(
+                matchId,
+                out _
+            );
+        }
+
         var database = _redis.GetDatabase();
 
         var json = database.StringGet(
@@ -53,15 +77,36 @@ public class RedisMatchRouteResolver
 
         try
         {
-            return JsonSerializer.Deserialize<MatchRoute>(
-                json.ToString(),
-                JsonOptions
-            );
+            var route =
+                JsonSerializer.Deserialize<MatchRoute>(
+                    json.ToString(),
+                    JsonOptions
+                );
+
+            if (route is null)
+            {
+                return null;
+            }
+
+            _cache[matchId] =
+                new CachedRoute(
+                    route,
+                    DateTime.UtcNow.Add(
+                        CacheDuration
+                    )
+                );
+
+            return route;
         }
         catch (JsonException)
         {
             database.KeyDelete(
                 MatchRouteKey(matchId)
+            );
+
+            _cache.TryRemove(
+                matchId,
+                out _
             );
 
             return null;
@@ -90,6 +135,11 @@ public class RedisMatchRouteResolver
             return;
         }
 
+        _cache.TryRemove(
+            matchId,
+            out _
+        );
+
         _redis.GetDatabase().KeyDelete(
             MatchRouteKey(matchId)
         );
@@ -100,4 +150,9 @@ public class RedisMatchRouteResolver
         return $"{_options.InstanceName}" +
                $"routing:match:{matchId}";
     }
+
+    private sealed record CachedRoute(
+        MatchRoute Route,
+        DateTime ExpiresAtUtc
+    );
 }
